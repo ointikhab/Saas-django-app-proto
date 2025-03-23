@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  mysql_db:
+    image: mysql:8
+    container_name: mysql_container
+    restart: always
+    environment:
+      MYSQL_DATABASE: mydb
+      MYSQL_USER: myuser
+      MYSQL_PASSWORD: mypassword
+      MYSQL_ROOT_PASSWORD: rootpassword
+    ports:
+      - "3307:3306"
+    volumes:
+      - ./mysql_data:/var/lib/mysql
+  
+  phpmyadmin:
+    container_name: phpmyadmin_container
+    image: phpmyadmin
+    restart: always
+    ports:
+      - "8080:80"
+    environment:
+      PMA_HOST: mysql_db
+      MYSQL_ROOT_PASSWORD: rootpassword   
+    depends_on:
+      - mysql_db
+
+  django_project:
+    container_name: django_container
+    image: django-img
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - mysql_db
+    volumes:
+      - .:/dockerdjangosetup
+    ports:
+      - "8000:8000"
+    env_file:
+      - ".env"
+    command: bash -c "python manage.py makemigrations && python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+
+# volumes:
+#   mysql_data:

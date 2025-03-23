@@ -1,0 +1,180 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  annotations:
+    cronjob.kubernetes.io/instantiate: manual
+    justification: test
+  creationTimestamp: null
+  labels:
+    app.kubernetes.io/component: cron-job
+    app.kubernetes.io/instance: property-lpv-service-beta-pro
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: property-lpv-service-shell
+    app.kubernetes.io/part-of: property-lpv-service
+    app.kubernetes.io/version: 1.0.0
+    dubizzle.com/product_name: vertical_property
+    dubizzle.com/service_name: property-buyer
+    dubizzle.com/severity: critical
+    dubizzle.com/team_name: E
+    helm.sh/chart: application-1.4.5
+  name: property-lpv-service-shell-manual-omama
+  ownerReferences:
+  - apiVersion: batch/v1
+    blockOwnerDeletion: true
+    controller: true
+    kind: CronJob
+    name: property-lpv-service-shell
+    uid: 93628fac-4d61-47e8-bd5f-51c6c852c3a3
+spec:
+  activeDeadlineSeconds: 604800
+  backoffLimit: 0
+  template:
+    metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+        dubizzle.com/log-format: json
+        sidecar.istio.io/inject: "false"
+        sidecar.istio.io/proxyCPU: 0m
+        sidecar.istio.io/proxyMemory: 0Mi
+        sidecar.istio.io/proxyMemoryLimit: 512Mi
+      creationTimestamp: null
+      labels:
+        app.kubernetes.io/component: cron-job
+        app.kubernetes.io/instance: property-lpv-service-beta-pro
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: property-lpv-service-shell
+        app.kubernetes.io/part-of: property-lpv-service
+        app.kubernetes.io/version: 1.0.0
+        dubizzle.com/product_name: vertical_property
+        dubizzle.com/service_name: property-buyer
+        dubizzle.com/severity: critical
+        dubizzle.com/team_name: E
+        helm.sh/chart: application-1.4.5
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: eks.amazonaws.com/capacityType
+                operator: In
+                values:
+                - ON_DEMAND
+                - SPOT
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                  - property-lpv-service-shell
+              topologyKey: kubernetes.io/hostname
+            weight: 100
+      containers:
+      - args:
+        - |
+          /fluent-bit/bin/fluent-bit -c /fluent-bit/etc/fluent-bit.conf & {
+            CHILD_PID=$!
+            (while true; do if [[ -f "/tmp/pod/terminated" ]]; then sleep 3; kill $CHILD_PID; echo "Killed $CHILD_PID because the main container terminated."; fi; sleep 1; done) &
+            wait $CHILD_PID
+          }
+        command:
+        - bash
+        - -c
+        image: 604664627747.dkr.ecr.eu-west-1.amazonaws.com/dockerhub/fluent/fluent-bit:1.9.2-debug
+        imagePullPolicy: IfNotPresent
+        name: logger
+        resources:
+          limits:
+            memory: 128Mi
+          requests:
+            cpu: 50m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsUser: 1000
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /var/log/dubizzle/app/
+          name: log-volume-var-log-dubizzle-app
+        - mountPath: /fluent-bit/etc/
+          name: config-volume-fluent-bit
+        - mountPath: /tmp/pod
+          name: touch-volume-terminate
+          readOnly: true
+      - args:
+        - |
+          trap "touch /tmp/pod/terminated" EXIT
+          "/sbin/my_init" "--skip-runit" "--" "/bin/bash" "-c" "while true; do sleep 60; done;"
+        command:
+        - /bin/sh
+        - -c
+        envFrom:
+        - secretRef:
+            name: property-lpv-service-secret
+        image: 604664627747.dkr.ecr.eu-west-1.amazonaws.com/property-lpv-service:pro-master-534d556
+        imagePullPolicy: IfNotPresent
+        name: application
+        resources:
+          limits:
+            memory: 256Mi
+          requests:
+            cpu: "0"
+            memory: "0"
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /var/log/dubizzle/app/
+          name: log-volume-var-log-dubizzle-app
+        - mountPath: /etc/logrotate.d/app.conf
+          name: config-volume-logrotate
+          subPath: app.conf
+        - mountPath: /etc/logrotate.d/nginx.conf
+          name: config-volume-logrotate
+          subPath: nginx.conf
+        - mountPath: /etc/logrotate.d/uwsgi.conf
+          name: config-volume-logrotate
+          subPath: uwsgi.conf
+        - mountPath: /tmp/pod
+          name: touch-volume-terminate
+      dnsConfig:
+        options:
+        - name: ndots
+          value: "1"
+      dnsPolicy: ClusterFirst
+      imagePullSecrets:
+      - name: dubizzlecred
+      nodeSelector:
+        dubizzle.com/group: beta-pro
+      restartPolicy: Never
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccount: property-lpv-service-sa
+      serviceAccountName: property-lpv-service-sa
+      terminationGracePeriodSeconds: 30
+      tolerations:
+      - effect: NoExecute
+        key: dubizzle.com/group
+        operator: Equal
+        value: beta-pro
+      - effect: NoExecute
+        key: dubizzle.com/workload
+        operator: Equal
+        value: general-purpose
+      volumes:
+      - emptyDir: {}
+        name: log-volume-var-log-dubizzle-app
+      - configMap:
+          defaultMode: 420
+          name: property-lpv-service-shell-logrotate-cm
+        name: config-volume-logrotate
+      - configMap:
+          defaultMode: 420
+          name: property-lpv-service-shell-logger-cm
+        name: config-volume-fluent-bit
+      - emptyDir: {}
+        name: touch-volume-terminate
+status: {}
