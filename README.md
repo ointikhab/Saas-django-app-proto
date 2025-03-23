@@ -6,6 +6,7 @@ A **SaaS-based Django application prototype** designed for scalability and ease 
 
 ### **Prerequisites**
 Make sure you have the following installed:
+for now i have pushed env keys as well. which can be replace later with env keys
 - [Docker](https://docs.docker.com/get-docker/)
 - [Docker Compose](https://docs.docker.com/compose/install/)
 
